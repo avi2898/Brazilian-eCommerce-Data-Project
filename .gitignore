@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+!project_walkthrough.ipynb
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project-specific: large data files not committed
+data/*.csv
+data/naturalearth/
+
+# SQLite database (rebuilt locally from CSVs)
+*.db
+
+# Legacy / temp output files at project root
+q2_*.png
+q1_*.png
+
+# Egg info from pip install -e .
+ecommerce_analysis.egg-info/
+
+# Claude Code local session settings
+.claude/
