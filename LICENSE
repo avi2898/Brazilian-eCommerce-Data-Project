@@ -20,11 +20,3 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
----
-
-Dataset Notice
-
-The dataset used in this project (Brazilian E-Commerce Public Dataset by Olist) is not
-redistributed here and remains subject to its original CC BY-NC-SA 4.0 license.
-This MIT License applies to the code, analysis, notebook, and documentation in this
-repository only.
