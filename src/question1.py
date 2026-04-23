@@ -269,37 +269,27 @@ def build_regression_dataset(df: pd.DataFrame, geo: pd.DataFrame):
 # ---------------------------------------------------------------------------
 def run_diagnostics(df_reg: pd.DataFrame) -> dict:
     """
-    Print residual summary statistics and an informal heteroscedasticity check.
+    Print residual summary statistics.
 
-    Reports mean and standard deviation of residuals, and the Pearson correlation
-    between fitted values and squared residuals. A strong positive correlation
-    indicates that variance grows with distance — deliveries to far regions are
-    not only slower but also less predictable.
+    Reports mean and standard deviation of residuals as a basic sanity check
+    on the regression fit. Mean should be near zero for an unbiased model;
+    std gives a sense of overall delivery variability beyond what distance explains.
 
     Returns
     -------
     dict with keys:
-      mean_residual        – mean of residuals (should be ~0 for unbiased model)
-      std_residual         – standard deviation of residuals
-      corr_fitted_sq_resid – Pearson r between fitted values and squared residuals
+      mean_residual – mean of residuals (should be ~0 for unbiased model)
+      std_residual  – standard deviation of residuals
     """
-    res    = df_reg["residual_days"].values
-    fitted = df_reg["predicted_days"].values
+    res = df_reg["residual_days"].values
 
     print("\n  Residual diagnostics:")
     print(f"    Mean residual:  {res.mean():.4f} days  (should be ~0)")
     print(f"    Std  residual:  {res.std():.4f} days")
 
-    # Pearson correlation between fitted values and squared residuals.
-    # A positive correlation signals heteroscedasticity: variance rises with distance.
-    corr_fs, _ = stats.pearsonr(fitted, res ** 2)
-    print(f"    Corr(fitted, residual²): {corr_fs:.4f}  "
-          f"{'— suggests heteroscedasticity' if abs(corr_fs) > 0.05 else ''}")
-
     return {
-        "mean_residual":        float(res.mean()),
-        "std_residual":         float(res.std()),
-        "corr_fitted_sq_resid": float(corr_fs),
+        "mean_residual": float(res.mean()),
+        "std_residual":  float(res.std()),
     }
 
 
@@ -329,17 +319,19 @@ def build_geo_dataset(df_reg: pd.DataFrame, geo: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# 9. Impact Score Ranking — state-level bottleneck prioritisation
+# 9. Bottleneck prioritisation — state-level severity and scale
 # ---------------------------------------------------------------------------
-def run_prioritization(df_geo: pd.DataFrame) -> None:
+def run_prioritization(df_geo: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Rank states by operational impact score = mean_residual × log1p(total_orders).
-    High residual + high volume = greatest intervention opportunity.
+    Rank bottleneck states by mean residual (delay severity per order).
+    Assign a suggested action based on whether the state's order volume is above the national median.
 
-    Impact Score Ranking:
-    Residual inefficiency alone is not enough for prioritisation.
-    We rank regions using both residual severity and order volume
-    to identify bottlenecks with the greatest operational impact.
+    Two dimensions drive the business interpretation:
+      - Mean Residual (days): how many days slower than distance predicts, on average.
+        Higher = stronger per-order bottleneck.
+      - Total Orders: how many deliveries are affected.
+        High volume + positive residual → carrier review.
+        Low volume + positive residual → regional investigation.
     """
     state_agg = (
         df_geo.groupby("customer_state")
@@ -351,41 +343,32 @@ def run_prioritization(df_geo: pd.DataFrame) -> None:
         .query(f"total_orders >= {MIN_STATE_ORDERS}")
     )
 
-    # Impact score weights residual by log order volume
-    # Combines severity (delay inefficiency) with scale (affected customers)
-    # Helps prioritize operational interventions with highest business impact
-    state_agg["impact_score"] = (
-        state_agg["mean_residual_days"] * np.log1p(state_agg["total_orders"])
-    )
-
     vol_median = state_agg["total_orders"].median()
 
     def _action(row: pd.Series) -> str:
         if row["mean_residual_days"] > 0 and row["total_orders"] >= vol_median:
-            return "High-priority carrier / fulfillment review"
+            return "Carrier review"
         elif row["mean_residual_days"] > 0:
-            return "Investigate regional bottlenecks"
+            return "Regional investigation"
         else:
-            return "Monitor — currently efficient"
+            return "Monitor"
 
     state_agg["suggested_action"] = state_agg.apply(_action, axis=1)
 
-    # Top 5 bottleneck states (positive residual only)
+    # Top 5 bottleneck states by per-order delay severity (positive residual only)
     bottlenecks = (
         state_agg[state_agg["mean_residual_days"] > 0]
-        .nlargest(5, "impact_score")
+        .nlargest(5, "mean_residual_days")
         .reset_index(drop=True)
     )
 
-    print("\n  Top 5 bottleneck states (ranked by impact score):")
-    print(f"  {'#':<3} {'State':<6} {'Residual (d)':>13} {'Orders':>8} "
-          f"{'Impact':>8}  Suggested Action")
-    print("  " + "-" * 75)
+    print("\n  Top 5 bottleneck states:")
+    print(f"  {'#':<3} {'State':<6} {'Residual (d)':>13} {'Orders':>8}  Action")
+    print("  " + "-" * 58)
     for i, row in bottlenecks.iterrows():
         print(f"  {i+1:<3} {row['customer_state']:<6} "
               f"{row['mean_residual_days']:>12.2f}  "
               f"{int(row['total_orders']):>8,}  "
-              f"{row['impact_score']:>7.2f}  "
               f"{row['suggested_action']}")
 
     # Top 5 most efficient states (negative residual)
@@ -560,7 +543,7 @@ def build_map_and_regression(
     # Subtle footnote on rising spread at longer distances
     ax_reg.text(
         0.5, -0.10,
-        "Wider spread at higher distances suggests heteroscedasticity and rising delivery uncertainty.",
+        "Spread increases at longer distances, indicating greater delivery uncertainty for remote regions.",
         transform=ax_reg.transAxes,
         ha="center", va="top", fontsize=7.5, color=EDGE, style="italic",
     )
@@ -605,17 +588,14 @@ def main() -> None:
     print(f"  Residual range:   {df_reg['residual_days'].min():.1f} – "
           f"{df_reg['residual_days'].max():.1f} days")
 
-    # Check residual mean/std and informal heteroscedasticity signal.
+    # Residual diagnostics: verify mean ≈ 0 (unbiased fit) and report std.
     run_diagnostics(df_reg)
 
     print("\nBuilding geographic efficiency dataset (zip-prefix level)...")
     df_geo = build_geo_dataset(df_reg, geo)
     print(f"  {len(df_geo):,} zip prefixes after filtering")
 
-    # Impact Score Ranking:
-    # Residual inefficiency alone is not enough for prioritisation.
-    # We rank regions using both residual severity and order volume
-    # to identify bottlenecks with the greatest operational impact.
+    # Rank bottleneck states by residual severity; label by scale.
     run_prioritization(df_geo)
 
     # Key Insights

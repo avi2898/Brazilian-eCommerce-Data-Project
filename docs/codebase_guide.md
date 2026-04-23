@@ -140,11 +140,11 @@ load_geo()                 ← average lat/lng per zip prefix
     │
 build_regression_dataset() ← Haversine distance + log-linear OLS regression
     │                         residual = actual − predicted
-    ├── run_diagnostics()  ← residual mean/std + Pearson correlation (heteroscedasticity check)
+    ├── run_diagnostics()  ← residual mean/std (sanity check: mean should be ~0)
     │
 build_geo_dataset()        ← aggregate to zip-prefix level
     │
-run_prioritization()       ← rank states by impact = residual × log(volume)
+run_prioritization()       ← rank bottleneck states by residual; assign action label by scale
     │
 build_map_and_regression() ← two-panel chart: Brazil map + scatter plot
 ```
@@ -320,8 +320,16 @@ The `order_estimated_delivery_date` column contains dates that Olist commits to 
 ### Why log-transform distance (question1)?
 Distance in km is right-skewed: most orders are within 500 km, but some cross the full width of Brazil (3,000+ km). A linear model on raw distance would be pulled toward fitting the extreme long-distance tail. `log1p(distance)` compresses the scale so the model weights all observations more evenly. It also captures the likely *diminishing marginal* effect of distance: the difference between 100 km and 200 km probably matters more than the difference between 2,000 km and 2,100 km.
 
-### Why impact score = residual × log(volume) (question1)?
-A state with a large positive residual (slow deliveries) but only 10 orders is less actionable than a state with a moderate residual and 10,000 orders. Multiplying residual by `log1p(total_orders)` combines severity and scale. The log dampens the effect of very high volumes so that a state with 50,000 orders doesn't automatically dominate one with 5,000.
+### How does the prioritisation logic work (question1)?
+`run_prioritization()` ranks bottleneck states by `mean_residual_days` descending — highest per-order delay first. A separate rule then assigns each state a **Suggested Action** based on order volume:
+
+| Condition | Label |
+|---|---|
+| Positive residual + orders ≥ national median | **Carrier review** |
+| Positive residual + orders < national median | **Regional investigation** |
+| Negative residual | **Monitor** |
+
+The action label is not the ranking criterion — it is assigned after ranking to indicate what kind of intervention is appropriate. Keeping ranking (severity) and action type (scale) separate makes both dimensions visible to the reader and avoids obscuring one with the other.
 
 ### Why bootstrap sampling instead of a confidence interval formula (question3)?
 Classical confidence interval formulas assume a specific distribution (usually normal). Seller revenue is strongly right-skewed — the normal assumption is false. Bootstrap sampling makes no distributional assumption: it treats the observed seller-month revenues as the population and re-samples from them. The resulting simulation reflects the actual shape of the distribution, including the long right tail.

@@ -36,16 +36,15 @@ This README is the concise project summary. The notebook is the deeper analytica
 *Left: Brazil geospatial scatter coloured by mean residual lead time per zip prefix (blue = faster than expected, red = bottleneck). Right: log(distance) vs actual lead time scatter with OLS trendline.*
 
 **Methodology**
-- Log-linear OLS regression of actual lead time on `log(distance_km + 1)` — log applied because raw distance is right-skewed and the marginal effect of each extra km diminishes; `+1` ensures the transform is defined when distance is zero or near-zero
-- Residual = `actual − predicted` days per order; **Mean Residual (days)** per state = the average operational delay premium that geography cannot explain
-- Estimated delivery dates excluded — actual delivery frequently arrives before the promised date because the platform sets conservative buffers, making `actual − estimated` biased and often negative; it measures promise conservatism, not operational speed
-- **Impact Score** = `mean_residual_days × log1p(total_orders)` per state — combines delay severity with business scale so a moderately delayed high-volume state can outrank a severely delayed low-volume state
-
+- Log-linear OLS regression of actual lead time on `log(distance_km + 1)` — log applied because delivery distance is strongly right-skewed and the marginal effect of each additional km is likely to diminish; `+1` ensures the transformation remains defined for zero or near-zero distances
+- Residual = `actual − predicted` days per order; **Mean Residual (days)** by state measures how many days slower or faster deliveries are, on average, than distance alone would predict
+- Estimated delivery dates excluded — actual deliveries often arrive before the promised date because the platform appears to use conservative buffers, so `actual − estimated` would mostly capture promise conservatism rather than operational efficiency
+- Bottleneck states evaluated using two transparent metrics: **mean residual** for delay severity per order, and **total orders** for the number of deliveries affected
 #### Finding
 Distance explains ~16% of lead-time variance (R² = 0.160, r = 0.401, n = 95,977). The remaining 84% is operational — residual clusters expose where carrier quality, fulfillment density, and infrastructure are the binding constraint.
 
 #### Recommendation
-**RJ** ranks first by Impact Score — ~9,000 affected orders mean any carrier or logistics improvement there delivers the highest operational leverage. **SE, CE, PA, and MA** show worse per-order delays but lower volumes, making them better candidates for targeted regional or infrastructure investigation than full carrier-programme overhauls. **SP, MG, PR, and DF** consistently undercut predicted lead times and serve as the operational benchmark for underperforming states.
+**SE, CE, MA, and PA** have the highest per-order delays (+3–5 days beyond what distance predicts) and are the strongest targets for regional infrastructure investigation. **RJ** has a lower per-order residual (+1.96 days) but the largest affected volume among bottleneck states (~9,000 orders), making it the highest-priority candidate for a carrier or fulfillment review where any improvement returns at scale. **SP, MG, PR, and DF** consistently undercut predicted lead times and serve as the operational benchmark for underperforming states.
 
 ---
 
@@ -124,7 +123,7 @@ Voucher warrants the most immediate attention — highest cancellation rate (4.7
 
 | Question | Core Finding | Recommended Action |
 |---|---|---|
-| **Logistics** | Geography explains only 16% of lead-time variance. RJ is the top bottleneck by Impact Score; SE, CE, PA, MA have worse per-order delays at lower scale. | Audit RJ for carrier performance; investigate SE/CE/PA/MA as regional infrastructure targets; use SP/MG/PR/DF as benchmarks. |
+| **Logistics** | Geography explains only 16% of lead-time variance. SE, CE, MA, PA have the highest per-order delays (+3–5 days); RJ has the largest affected volume (~9,000 orders) at +1.96 days. | Prioritise RJ for carrier/fulfillment review (scale); investigate SE/CE/PA/MA as regional infrastructure targets; use SP/MG/PR/DF as benchmarks. |
 | **Sales** | Strong growth Jan 2017–Aug 2018; peak revenue in November 2017, April 2018, and March 2018. | Plan capacity and staffing around those three months; use MoM trend as a leading platform health indicator. |
 | **Seller Revenue** | Median BRL 372/month vs mean BRL 1,000. 58.1% of seller-months below BRL 500; only 3.3% above BRL 5,000. | Quote median and concrete probability thresholds in onboarding — not the mean. Target support at bottom-quartile sellers. |
 | **Payments** | Voucher cancellation rate 4.7% — roughly 8× credit card (0.57%). Credit card dominates volume and revenue in the Low Risk / High Value quadrant. | Prioritise voucher cancellation reduction; protect credit card position; use boleto's low-risk profile for AOV-growth incentives. |
@@ -140,7 +139,7 @@ Voucher warrants the most immediate attention — highest cancellation rate (4.7
 | Pandas | Data manipulation and SQL result handling |
 | NumPy | Vectorised computation, bootstrap sampling, statistics |
 | Matplotlib | All four output charts |
-| SciPy | Pearson correlation for heteroscedasticity check (Q1) |
+| SciPy | Pearson correlation for regression fit and residual diagnostics (Q1) |
 | GeoPandas | Brazil map background for the geospatial scatter plot (Q1) |
 
 ---
